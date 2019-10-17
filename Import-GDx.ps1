@@ -51,7 +51,7 @@ function ConvertTo-Png {
         "Rendering $Path to PNG with DPI $Dpi as $DestinationPath" | Out-Host
 
         if (!$DryRun) {
-            &$InkscapePath --without-gui --export-png $DestinationPath --export-dpi $Dpi --file $Path | Out-Null
+            &$InkscapePath --without-gui --export-png "$DestinationPath" --export-dpi $Dpi --file "$Path" | Out-Null
         }
         
         return $DestinationPath
@@ -74,7 +74,7 @@ function ConvertTo-Pdf {
         "Rendering $Path to PDF as $DestinationPath" | Out-Host
 
         if (!$DryRun) {
-            &$InkscapePath --without-gui --export-pdf $DestinationPath --file $Path | Out-Null
+            &$InkscapePath --without-gui --export-pdf "$DestinationPath" --file "$Path" | Out-Null
         }
         
         return $DestinationPath
