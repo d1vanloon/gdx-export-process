@@ -1,3 +1,25 @@
+<#
+.SYNOPSIS
+    Processes GDx export files
+.DESCRIPTION
+    Processes GDx export files, rendering SVG content to PDF and PNG and copying the resulting
+    files to a destination directory under new file names, created from the export metadata.
+.EXAMPLE
+    PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -DryRun
+    Displays what would happen when processing the exports in the source directory '\\server\export\gdx' without
+    making any changes.
+.EXAMPLE    
+    PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx
+    Processes the exports in '\\server\export\gdx' using the inkscape executable at the default location
+    (relative to the script, in '.\deps\inkscape'). Does not remove the exports from the source directory.
+.EXAMPLE    
+    PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -InkscapePath 'C:\Program Files\Inkscape\inkscape.exe'
+    Processes the exports in '\\server\export\gdx' using a custom inkscape executable.
+.EXAMPLE    
+    PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -InkscapePath 'C:\Program Files\Inkscape\inkscape.exe' -Clean
+    Processes the exports in '\\server\export\gdx' using a custom inkscape executable, removing the exports
+    from the source directory.
+#>
 [CmdletBinding()]
 param (
     # The source directory in which the GDx tests have been exported
