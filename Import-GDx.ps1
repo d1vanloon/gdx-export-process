@@ -137,51 +137,57 @@ $ImportDirectories = Get-ChildItem -Directory $SourceDirectory
 foreach ($ImportDirectory in $ImportDirectories) {
     "Processing $ImportDirectory" | Out-Host
 
-    $SvgFile = (Get-ChildItem -Filter "*.svg" $ImportDirectory)[0]
-    $XmlFile = (Get-ChildItem -Filter "*.xml" $ImportDirectory)[0]
+    try {
+        $SvgFile = (Get-ChildItem -Filter "*.svg" $ImportDirectory)[0]
+        $XmlFile = (Get-ChildItem -Filter "*.xml" $ImportDirectory)[0]
 
-    $PngFile = ConvertTo-Png -Path $SvgFile
-    $PdfFile = ConvertTo-Pdf -Path $SvgFile
+        $PngFile = ConvertTo-Png -Path $SvgFile
+        $PdfFile = ConvertTo-Pdf -Path $SvgFile
 
-    $Metadata = Get-Metadata -Path $XmlFile
+        $Metadata = Get-Metadata -Path $XmlFile
 
-    $DateString = Get-Date -Date $Metadata.Date -Format "yyyyMMdd"
+        $DateString = Get-Date -Date $Metadata.Date -Format "yyyyMMdd"
 
-    $BaseFileName = "$($Metadata.ID)_$($Metadata.LastName)_$($Metadata.FirstName)_GDx_$($DateString)"
+        $BaseFileName = "$($Metadata.ID)_$($Metadata.LastName)_$($Metadata.FirstName)_GDx_$($DateString)"
 
-    $PngDestination = (Join-Path -Path $DestinationDirectory -ChildPath "$BaseFileName.png")
-    $PdfDestination = (Join-Path -Path $DestinationDirectory -ChildPath "$BaseFileName.pdf")
+        $PngDestination = (Join-Path -Path $DestinationDirectory -ChildPath "$BaseFileName.png")
+        $PdfDestination = (Join-Path -Path $DestinationDirectory -ChildPath "$BaseFileName.pdf")
 
-    $Suffix = 1
+        $Suffix = 1
 
-    while ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination)) {
-        "Destination file exists. Trying suffix $Suffix." | Write-Host
-        $PngDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.png")
-        $PdfDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.pdf")
-        $Suffix += 1
-    }
-
-    if ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination)) {
-        "Destination file already exists." | Write-Error
-    } else {
-        "Moving $PngFile to $PngDestination" | Out-Host
-
-        if (!$DryRun) {
-            Move-Item -Path $PngFile -Destination $PngDestination
-        }
-        
-        "Moving $PdfFile to $PdfDestination" | Out-Host
-
-        if (!$DryRun) {
-            Move-Item -Path $PdfFile -Destination $PdfDestination
+        while ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination)) {
+            "Destination file exists. Trying suffix $Suffix." | Write-Host
+            $PngDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.png")
+            $PdfDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.pdf")
+            $Suffix += 1
         }
 
-        if ((Test-Path -Path $PngDestination -Type Leaf) -and (Test-Path -Path $PdfDestination -Type Leaf) -and $Clean) {
-            "Removing directory $ImportDirectory" | Out-Host
-    
+        if ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination)) {
+            "Destination file already exists." | Write-Error
+        } else {
+            "Moving $PngFile to $PngDestination" | Out-Host
+
             if (!$DryRun) {
-                Remove-Item -Path $ImportDirectory -Recurse
+                Move-Item -Path $PngFile -Destination $PngDestination
+            }
+            
+            "Moving $PdfFile to $PdfDestination" | Out-Host
+
+            if (!$DryRun) {
+                Move-Item -Path $PdfFile -Destination $PdfDestination
+            }
+
+            if ((Test-Path -Path $PngDestination -Type Leaf) -and (Test-Path -Path $PdfDestination -Type Leaf) -and $Clean) {
+                "Removing directory $ImportDirectory" | Out-Host
+        
+                if (!$DryRun) {
+                    Remove-Item -Path $ImportDirectory -Recurse
+                }
             }
         }
+    }
+    catch {
+        "Could not process ${ImportDirectory}" | Out-Host
+        $_ | Out-Host
     }
 }
