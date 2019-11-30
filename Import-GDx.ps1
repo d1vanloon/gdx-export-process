@@ -116,7 +116,7 @@ function Get-Metadata {
     process {
         $DataObject = [xml](Get-Content -Path $Path)
 
-        $Date = $xmlContent.Polarimeter.Session1.Date
+        $Date = $DataObject.Polarimeter.Session1.Date
 
         $Metadata = [PSCustomObject]@{
             FirstName = $DataObject.Polarimeter.PatientData.FirstName;
