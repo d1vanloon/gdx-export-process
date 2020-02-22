@@ -135,10 +135,12 @@ function Get-Metadata {
 $ImportDirectories = Get-ChildItem -Directory $SourceDirectory
 
 foreach ($ImportDirectory in $ImportDirectories) {
+    $ImportDirectory = Join-Path -Path $SourceDirectory -ChildPath $ImportDirectory
+    
     "Processing $ImportDirectory" | Out-Host
 
-    $SvgFile = (Get-ChildItem -Filter "*.svg" $ImportDirectory)[0]
-    $XmlFile = (Get-ChildItem -Filter "*.xml" $ImportDirectory)[0]
+    $SvgFile = Join-Path -Path $ImportDirectory -ChildPath (Get-ChildItem -Filter "*.svg" $ImportDirectory)[0]
+    $XmlFile = Join-Path -Path $ImportDirectory -ChildPath (Get-ChildItem -Filter "*.xml" $ImportDirectory)[0]
 
     $PngFile = ConvertTo-Png -Path $SvgFile
     $PdfFile = ConvertTo-Pdf -Path $SvgFile
