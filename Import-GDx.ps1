@@ -22,6 +22,10 @@
     PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -InkscapePath 'C:\Program Files\Inkscape\inkscape.exe' -Clean
     Processes the exports in '\\server\export\gdx' using a custom inkscape executable, removing the exports
     from the source directory.
+.EXAMPLE
+    PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -Formats pdf,jpg -Clean
+    Processes the exports in '\\server\export\gdx' using a custom inkscape executable, removing the exports
+    from the source directory. Only moves PDF and JPG results to the output directory.
 #>
 [CmdletBinding()]
 param (
@@ -50,6 +54,12 @@ param (
     [ValidateNotNullOrEmpty()]
     [string]
     $ImageMagickPath = "./deps/imagemagick/magick.exe",
+
+    # Desired file formats
+    [Parameter(Mandatory=$false)]
+    [ValidateSet('jpg','png','pdf')]
+    [string[]]
+    $Formats=@('jpg','pdf'),
 
     # Remove source subdirectories when imported
     [Parameter()]
@@ -94,7 +104,7 @@ function ConvertTo-Jpg {
     param (
         # File name to convert
         [Parameter(Mandatory=$true)]
-        [ValidateScript({Test-Path -PathType Leaf -Include "*.png" $_})]
+        [ValidateScript({$DryRun -or (Test-Path -PathType Leaf -Include "*.png" $_)})]
         [string]
         $Path
     )
@@ -164,6 +174,10 @@ function Get-Metadata {
     }
 }
 
+$MoveJpg = $Formats.Contains('jpg')
+$MovePng = $Formats.Contains('png')
+$MovePdf = $Formats.Contains('pdf')
+
 $ImportDirectories = Get-ChildItem -Directory $SourceDirectory
 
 foreach ($ImportDirectory in $ImportDirectories) {
@@ -190,7 +204,9 @@ foreach ($ImportDirectory in $ImportDirectories) {
 
     $Suffix = 1
 
-    while ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination) -or (Test-Path -Path $JpgDestination)) {
+    while ((Test-Path -Path $PngDestination) `
+            -or (Test-Path -Path $PdfDestination) `
+            -or (Test-Path -Path $JpgDestination)) {
         "Destination file exists. Trying suffix $Suffix." | Write-Host
         $PngDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.png")
         $JpgDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.jpg")
@@ -198,28 +214,41 @@ foreach ($ImportDirectory in $ImportDirectories) {
         $Suffix += 1
     }
 
-    if ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination) -or (Test-Path -Path $JpgDestination)) {
+    if ((Test-Path -Path $PngDestination) `
+        -or (Test-Path -Path $PdfDestination) `
+        -or (Test-Path -Path $JpgDestination)) {
         "Destination file already exists." | Write-Error
     } else {
-        "Moving $PngFile to $PngDestination" | Out-Host
+        if ($MovePng) {
+            "Moving $PngFile to $PngDestination" | Out-Host
 
-        if (!$DryRun) {
-            Move-Item -Path $PngFile -Destination $PngDestination
+            if (!$DryRun) {
+                Move-Item -Path $PngFile -Destination $PngDestination
+            }
         }
 
-        "Moving $JpgFile to $JpgDestination" | Out-Host
+        if ($MoveJpg) {
+            "Moving $JpgFile to $JpgDestination" | Out-Host
 
-        if (!$DryRun) {
-            Move-Item -Path $JpgFile -Destination $JpgDestination
+            if (!$DryRun) {
+                Move-Item -Path $JpgFile -Destination $JpgDestination
+            }
         }
 
-        "Moving $PdfFile to $PdfDestination" | Out-Host
+        if ($MovePdf) {
+            "Moving $PdfFile to $PdfDestination" | Out-Host
 
-        if (!$DryRun) {
-            Move-Item -Path $PdfFile -Destination $PdfDestination
+            if (!$DryRun) {
+                Move-Item -Path $PdfFile -Destination $PdfDestination
+            }
         }
 
-        if ((Test-Path -Path $PngDestination -Type Leaf) -and (Test-Path -Path $PdfDestination -Type Leaf) -and $Clean) {
+        # Only remove the input directory if all requested output files are present in the output
+        # directory and the -Clean flag was specified
+        if ((($MovePng -and (Test-Path -Path $PngDestination -Type Leaf)) -or -not $MovePng) `
+            -and (($MovePdf -and (Test-Path -Path $PdfDestination -Type Leaf)) -or -not $MovePdf) `
+            -and (($MoveJpg -and (Test-Path -Path $JpgDestination -Type Leaf)) -or -not $MoveJpg) `
+            -and $Clean) {
             "Removing directory $ImportDirectory" | Out-Host
 
             if (!$DryRun) {
