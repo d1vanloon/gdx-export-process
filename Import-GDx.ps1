@@ -8,14 +8,17 @@
     PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -DryRun
     Displays what would happen when processing the exports in the source directory '\\server\export\gdx' without
     making any changes.
-.EXAMPLE    
+.EXAMPLE
     PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx
     Processes the exports in '\\server\export\gdx' using the inkscape executable at the default location
     (relative to the script, in '.\deps\inkscape'). Does not remove the exports from the source directory.
-.EXAMPLE    
+.EXAMPLE
     PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -InkscapePath 'C:\Program Files\Inkscape\inkscape.exe'
     Processes the exports in '\\server\export\gdx' using a custom inkscape executable.
-.EXAMPLE    
+.EXAMPLE
+    PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -ImageMagickPath 'C:\Program Files\ImageMagick\magick.exe'
+    Processes the exports in '\\server\export\gdx' using a custom imagemagick executable.
+.EXAMPLE
     PS C:\> .\Import-GDx.ps1 -SourceDirectory \\server\export\gdx -DestinationDirectory \\server\maximEye\scanlink\images\gdx -InkscapePath 'C:\Program Files\Inkscape\inkscape.exe' -Clean
     Processes the exports in '\\server\export\gdx' using a custom inkscape executable, removing the exports
     from the source directory.
@@ -27,7 +30,7 @@ param (
     [ValidateScript({Test-Path -PathType Container $_})]
     [string]
     $SourceDirectory,
-    
+
     # The destination directory in which the converted files will be saved
     [Parameter(Mandatory=$true)]
     [ValidateScript({Test-Path -PathType Container $_})]
@@ -37,10 +40,16 @@ param (
     # Specifies the path to the inkscape executable
     [Parameter(Mandatory=$false,
                HelpMessage="Path to the inkscape executable.")]
-    [Alias("PSPath")]
     [ValidateNotNullOrEmpty()]
     [string]
     $InkscapePath = "./deps/inkscape/inkscape.exe",
+
+    # Specifies the path to the imagemagick executable
+    [Parameter(Mandatory=$false,
+               HelpMessage="Path to the imagemagick executable.")]
+    [ValidateNotNullOrEmpty()]
+    [string]
+    $ImageMagickPath = "./deps/imagemagick/magick.exe",
 
     # Remove source subdirectories when imported
     [Parameter()]
@@ -66,7 +75,7 @@ function ConvertTo-Png {
         [int]
         $Dpi=300
     )
-    
+
     process {
         $DestinationPath = [System.IO.Path]::ChangeExtension($Path, "png")
 
@@ -75,7 +84,30 @@ function ConvertTo-Png {
         if (!$DryRun) {
             &$InkscapePath --without-gui --export-png "$DestinationPath" --export-dpi $Dpi --file "$Path" | Out-Null
         }
-        
+
+        return $DestinationPath
+    }
+}
+
+function ConvertTo-Jpg {
+    [CmdletBinding()]
+    param (
+        # File name to convert
+        [Parameter(Mandatory=$true)]
+        [ValidateScript({Test-Path -PathType Leaf -Include "*.png" $_})]
+        [string]
+        $Path
+    )
+
+    process {
+        $DestinationPath = [System.IO.Path]::ChangeExtension($Path, "jpg")
+
+        "Rendering $Path to JPG as $DestinationPath" | Out-Host
+
+        if (!$DryRun) {
+            &$ImageMagickPath mogrify -format jpg -background white -alpha background "$Path" | Out-Null
+        }
+
         return $DestinationPath
     }
 }
@@ -89,16 +121,16 @@ function ConvertTo-Pdf {
         [string]
         $Path
     )
-    
+
     process {
         $DestinationPath = [System.IO.Path]::ChangeExtension($Path, "pdf")
-        
+
         "Rendering $Path to PDF as $DestinationPath" | Out-Host
 
         if (!$DryRun) {
             &$InkscapePath --without-gui --export-pdf "$DestinationPath" --file "$Path" | Out-Null
         }
-        
+
         return $DestinationPath
     }
 }
@@ -112,7 +144,7 @@ function Get-Metadata {
         [string]
         $Path
     )
-    
+
     process {
         $DataObject = [xml](Get-Content -Path $Path)
 
@@ -136,13 +168,14 @@ $ImportDirectories = Get-ChildItem -Directory $SourceDirectory
 
 foreach ($ImportDirectory in $ImportDirectories) {
     $ImportDirectory = Join-Path -Path $SourceDirectory -ChildPath $ImportDirectory
-    
+
     "Processing $ImportDirectory" | Out-Host
 
     $SvgFile = Join-Path -Path $ImportDirectory -ChildPath (Get-ChildItem -Filter "*.svg" $ImportDirectory)[0]
     $XmlFile = Join-Path -Path $ImportDirectory -ChildPath (Get-ChildItem -Filter "*.xml" $ImportDirectory)[0]
 
     $PngFile = ConvertTo-Png -Path $SvgFile
+    $JpgFile = ConvertTo-Jpg -Path $PngFile
     $PdfFile = ConvertTo-Pdf -Path $SvgFile
 
     $Metadata = Get-Metadata -Path $XmlFile
@@ -152,18 +185,20 @@ foreach ($ImportDirectory in $ImportDirectories) {
     $BaseFileName = "$($Metadata.ID)_$($Metadata.LastName)_$($Metadata.FirstName)_GDx_$($DateString)"
 
     $PngDestination = (Join-Path -Path $DestinationDirectory -ChildPath "$BaseFileName.png")
+    $JpgDestination = (Join-Path -Path $DestinationDirectory -ChildPath "$BaseFileName.jpg")
     $PdfDestination = (Join-Path -Path $DestinationDirectory -ChildPath "$BaseFileName.pdf")
 
     $Suffix = 1
 
-    while ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination)) {
+    while ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination) -or (Test-Path -Path $JpgDestination)) {
         "Destination file exists. Trying suffix $Suffix." | Write-Host
         $PngDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.png")
+        $JpgDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.jpg")
         $PdfDestination = (Join-Path -Path $DestinationDirectory -ChildPath "${BaseFileName}_${Suffix}.pdf")
         $Suffix += 1
     }
 
-    if ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination)) {
+    if ((Test-Path -Path $PngDestination) -or (Test-Path -Path $PdfDestination) -or (Test-Path -Path $JpgDestination)) {
         "Destination file already exists." | Write-Error
     } else {
         "Moving $PngFile to $PngDestination" | Out-Host
@@ -171,7 +206,13 @@ foreach ($ImportDirectory in $ImportDirectories) {
         if (!$DryRun) {
             Move-Item -Path $PngFile -Destination $PngDestination
         }
-        
+
+        "Moving $JpgFile to $JpgDestination" | Out-Host
+
+        if (!$DryRun) {
+            Move-Item -Path $JpgFile -Destination $JpgDestination
+        }
+
         "Moving $PdfFile to $PdfDestination" | Out-Host
 
         if (!$DryRun) {
@@ -180,7 +221,7 @@ foreach ($ImportDirectory in $ImportDirectories) {
 
         if ((Test-Path -Path $PngDestination -Type Leaf) -and (Test-Path -Path $PdfDestination -Type Leaf) -and $Clean) {
             "Removing directory $ImportDirectory" | Out-Host
-    
+
             if (!$DryRun) {
                 Remove-Item -Path $ImportDirectory -Recurse
             }
